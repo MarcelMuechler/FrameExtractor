@@ -32,6 +32,7 @@ class App(tk.Tk):
         self._job: Optional[threading.Thread] = None
         self._msgs: "queue.Queue[str]" = queue.Queue()
         self._src_info: Optional[dict] = None
+        self._theme: str = "system"
 
     def _apply_styles(self) -> None:
         # Prefer a platform-native theme when available
@@ -46,12 +47,21 @@ class App(tk.Tk):
         style.configure("TLabel", padding=(2, 2))
         style.configure("TButton", padding=(6, 4))
         style.configure("Status.TLabel", anchor="w")
+        # Entry styles for validation
+        style.configure("Valid.TEntry")
+        style.configure("Invalid.TEntry", foreground="#b00020")
 
     def _build_menu(self) -> None:
         menubar = tk.Menu(self)
         file_menu = tk.Menu(menubar, tearoff=0)
         file_menu.add_command(label="Exit", command=self.destroy)
         menubar.add_cascade(label="File", menu=file_menu)
+
+        view_menu = tk.Menu(menubar, tearoff=0)
+        view_menu.add_radiobutton(label="System Theme", command=lambda: self._set_theme("system"))
+        view_menu.add_radiobutton(label="Light Theme", command=lambda: self._set_theme("light"))
+        view_menu.add_radiobutton(label="Dark Theme", command=lambda: self._set_theme("dark"))
+        menubar.add_cascade(label="View", menu=view_menu)
 
         help_menu = tk.Menu(menubar, tearoff=0)
         help_menu.add_command(
@@ -64,6 +74,36 @@ class App(tk.Tk):
         )
         menubar.add_cascade(label="Help", menu=help_menu)
         self.config(menu=menubar)
+
+    def _set_theme(self, mode: str) -> None:
+        # Light/system = default styles; Dark = override widget colors
+        self._theme = mode
+        style = ttk.Style()
+        if mode in ("system", "light"):
+            # Reset text widget colors to default
+            try:
+                self.status.configure(background="white", foreground="black")
+            except Exception:
+                pass
+            # Use existing theme (no heavy changes)
+            return
+        if mode == "dark":
+            # Apply simple dark palette
+            bg = "#1e1e1e"
+            fg = "#dddddd"
+            accent = "#0a84ff"
+            style.configure("TFrame", background=bg)
+            style.configure("TLabel", background=bg, foreground=fg)
+            style.configure("TButton", background=bg, foreground=fg)
+            style.configure("TCheckbutton", background=bg, foreground=fg)
+            style.configure("Status.TLabel", background=bg, foreground=fg)
+            style.configure("Valid.TEntry", fieldbackground="#2a2a2a", foreground=fg)
+            style.configure("Invalid.TEntry", fieldbackground="#3a1a1a", foreground="#ff8080")
+            # Text widget (tk) needs manual colors
+            try:
+                self.status.configure(background="#111111", foreground=fg, insertbackground=fg)
+            except Exception:
+                pass
 
     def _build_ui(self) -> None:
         root = ttk.Frame(self)
@@ -96,28 +136,55 @@ class App(tk.Tk):
 
         ttk.Label(opts_fr, text="Start:").grid(row=0, column=0, sticky="e")
         self.start_var = tk.StringVar()
-        start_entry = ttk.Entry(opts_fr, textvariable=self.start_var, width=12)
+        start_entry = ttk.Entry(opts_fr, textvariable=self.start_var, width=12, style="Valid.TEntry")
         start_entry.grid(row=0, column=1, sticky="w")
-        start_entry.bind("<FocusOut>", lambda e: self._update_estimate())
+        start_entry.bind("<FocusOut>", lambda e: (self._validate_fields(), self._update_estimate()))
+        self._start_entry = start_entry
+        self._start_err = tk.StringVar(value="")
+        ttk.Label(opts_fr, textvariable=self._start_err, foreground="#b00020").grid(row=1, column=1, sticky="w")
 
         ttk.Label(opts_fr, text="End:").grid(row=0, column=2, sticky="e")
         self.end_var = tk.StringVar()
-        end_entry = ttk.Entry(opts_fr, textvariable=self.end_var, width=12)
+        end_entry = ttk.Entry(opts_fr, textvariable=self.end_var, width=12, style="Valid.TEntry")
         end_entry.grid(row=0, column=3, sticky="w")
-        end_entry.bind("<FocusOut>", lambda e: self._update_estimate())
+        end_entry.bind("<FocusOut>", lambda e: (self._validate_fields(), self._update_estimate()))
+        self._end_entry = end_entry
+        self._end_err = tk.StringVar(value="")
+        ttk.Label(opts_fr, textvariable=self._end_err, foreground="#b00020").grid(row=1, column=3, sticky="w")
 
         ttk.Label(opts_fr, text="FPS:").grid(row=0, column=4, sticky="e")
         self.fps_var = tk.StringVar()
-        fps_entry = ttk.Entry(opts_fr, textvariable=self.fps_var, width=8)
+        fps_entry = ttk.Entry(opts_fr, textvariable=self.fps_var, width=8, style="Valid.TEntry")
         fps_entry.grid(row=0, column=5, sticky="w")
-        fps_entry.bind("<FocusOut>", lambda e: self._enforce_fps_limit())
+        fps_entry.bind("<FocusOut>", lambda e: (self._enforce_fps_limit(), self._validate_fields()))
+        self._fps_entry = fps_entry
+        self._fps_err = tk.StringVar(value="")
+        ttk.Label(opts_fr, textvariable=self._fps_err, foreground="#b00020").grid(row=1, column=5, sticky="w")
 
-        ttk.Label(opts_fr, text="Pattern:").grid(row=1, column=0, sticky="e", pady=(6, 0))
+        ttk.Label(opts_fr, text="Pattern:").grid(row=2, column=0, sticky="e", pady=(6, 0))
         self.pattern_var = tk.StringVar(value="frame_%06d.jpg")
-        ttk.Entry(opts_fr, textvariable=self.pattern_var).grid(row=1, column=1, columnspan=5, sticky="ew", pady=(6, 0))
+        pattern_entry = ttk.Entry(opts_fr, textvariable=self.pattern_var, style="Valid.TEntry")
+        pattern_entry.grid(row=2, column=1, columnspan=4, sticky="ew", pady=(6, 0))
+        pattern_entry.bind("<FocusOut>", lambda e: self._validate_fields())
+        self._pattern_entry = pattern_entry
+        self._pattern_err = tk.StringVar(value="")
+        ttk.Label(opts_fr, textvariable=self._pattern_err, foreground="#b00020").grid(row=3, column=1, columnspan=4, sticky="w")
+
+        # Pattern presets
+        ttk.Label(opts_fr, text="Preset:").grid(row=2, column=5, sticky="e", pady=(6, 0))
+        self._preset = tk.StringVar(value="JPEG (.jpg)")
+        preset = ttk.Combobox(
+            opts_fr,
+            textvariable=self._preset,
+            values=["JPEG (.jpg)", "PNG (.png)"],
+            state="readonly",
+            width=12,
+        )
+        preset.grid(row=2, column=6, sticky="w", padx=(6, 0))
+        preset.bind("<<ComboboxSelected>>", self._on_preset)
 
         toggles_fr = ttk.Frame(opts_fr)
-        toggles_fr.grid(row=2, column=0, columnspan=6, sticky="w", pady=(6, 0))
+        toggles_fr.grid(row=4, column=0, columnspan=7, sticky="w", pady=(6, 0))
         self.overwrite_var = tk.BooleanVar(value=False)
         self.verbose_var = tk.BooleanVar(value=False)
         self.dry_run_var = tk.BooleanVar(value=False)
@@ -220,6 +287,14 @@ class App(tk.Tk):
         self._enforce_fps_limit()
         self._update_estimate()
 
+    def _on_preset(self, _evt=None) -> None:
+        val = self._preset.get()
+        if "PNG" in val:
+            self.pattern_var.set("frame_%06d.png")
+        else:
+            self.pattern_var.set("frame_%06d.jpg")
+        self._validate_fields()
+
     def _enforce_fps_limit(self) -> None:
         if not self._src_info:
             return
@@ -273,6 +348,57 @@ class App(tk.Tk):
             est = int(max(0, dur_range) * fps)
         self.estimate_var.set("Estimate: " + (f"~{est} frames" if est is not None else "–"))
 
+    def _validate_fields(self) -> bool:
+        ok = True
+        # Start
+        try:
+            s = self.start_var.get().strip()
+            if s:
+                framegrab.parse_time(s)
+            self._start_entry.configure(style="Valid.TEntry")
+            self._start_err.set("")
+        except Exception:
+            self._start_entry.configure(style="Invalid.TEntry")
+            self._start_err.set("Invalid time")
+            ok = False
+        # End
+        try:
+            e = self.end_var.get().strip()
+            if e:
+                framegrab.parse_time(e)
+            self._end_entry.configure(style="Valid.TEntry")
+            self._end_err.set("")
+        except Exception:
+            self._end_entry.configure(style="Invalid.TEntry")
+            self._end_err.set("Invalid time")
+            ok = False
+        # FPS
+        try:
+            f = self.fps_var.get().strip()
+            if f:
+                framegrab.positive_fps(f)
+            self._fps_entry.configure(style="Valid.TEntry")
+            self._fps_err.set("")
+        except Exception:
+            self._fps_entry.configure(style="Invalid.TEntry")
+            self._fps_err.set("FPS > 0")
+            ok = False
+        # Pattern
+        try:
+            patt = self.pattern_var.get().strip() or "frame_%06d.jpg"
+            framegrab.validate_pattern(patt)
+            self._pattern_entry.configure(style="Valid.TEntry")
+            self._pattern_err.set("")
+        except SystemExit as e:  # validate_pattern exits; show message
+            self._pattern_entry.configure(style="Invalid.TEntry")
+            self._pattern_err.set(str(e))
+            ok = False
+        except Exception:
+            self._pattern_entry.configure(style="Invalid.TEntry")
+            self._pattern_err.set("Invalid pattern")
+            ok = False
+        return ok
+
     def _gather_args(self):
         input_video = Path(self.in_var.get().strip())
         output_dir = Path(self.out_var.get().strip())
@@ -308,6 +434,9 @@ class App(tk.Tk):
 
     def _on_preview(self) -> None:
         try:
+            if not self._validate_fields():
+                self._append_status("Fix validation errors above.")
+                return
             kwargs = self._gather_args()
             rc, _count, cmd = framegrab.extract_frames(**kwargs)
             printable = " ".join(shlex.quote(part) for part in cmd)
@@ -324,6 +453,9 @@ class App(tk.Tk):
             messagebox.showinfo("Busy", "An extraction is already running.")
             return
         try:
+            if not self._validate_fields():
+                self._append_status("Fix validation errors above.")
+                return
             kwargs = self._gather_args()
         except Exception as exc:
             messagebox.showerror("Error", str(exc))
