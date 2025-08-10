@@ -3,8 +3,7 @@
 FrameExtractor CLI (scaffold)
 
 Parses arguments, validates inputs, checks ffmpeg availability, and assembles the
-ffmpeg command. In this initial cut, the command is only printed when --dry-run
-is enabled (default).
+ffmpeg command. Default behavior executes ffmpeg; use --dry-run to only print.
 
 Usage examples:
   python framegrab.py sample.mp4 frames/
@@ -16,6 +15,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import glob
 import re
 import shlex
 import shutil
@@ -131,6 +131,14 @@ def build_ffmpeg_cmd(
     return cmd
 
 
+def pattern_to_glob(pattern: str) -> str:
+    """Convert a printf-style frame pattern (e.g., %06d) to a glob string.
+
+    Example: 'frame_%06d.jpg' -> 'frame_*.jpg'
+    """
+    return re.sub(r"%0?\d*d", "*", pattern)
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="framegrab.py",
@@ -163,8 +171,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         "--dry-run",
         dest="dry_run",
         action="store_true",
-        default=True,
-        help="Do not execute ffmpeg; only print the command (default)",
+        default=False,
+        help="Do not execute ffmpeg; only print the constructed command",
     )
 
     args = parser.parse_args(argv)
@@ -194,12 +202,31 @@ def main(argv: Optional[List[str]] = None) -> int:
             print("(dry-run) Not executing ffmpeg.", file=sys.stderr)
         return 0
 
-    # In this scaffold, we do not execute the command.
-    # The next iteration can toggle execution with a --run flag.
-    print("Dry-run is required in this scaffold; nothing executed.", file=sys.stderr)
+    # Ensure output directory exists before running
+    if not args.output_dir.exists():
+        args.output_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.verbose:
+        print(f"Executing: {printable}", file=sys.stderr)
+
+    # Execute ffmpeg
+    import subprocess
+
+    proc = subprocess.run(cmd)
+    if proc.returncode != 0:
+        # ffmpeg likely printed errors to stderr due to -loglevel error
+        return proc.returncode
+
+    # Summarize number of frames written
+    gpat = pattern_to_glob(args.pattern)
+    files = glob.glob(str(args.output_dir / gpat))
+    print(f"Wrote {len(files)} frames to {args.output_dir}")
     return 0
 
 
 if __name__ == "__main__":
     sys.exit(main())
 
+
+if __name__ == "__main__":
+    sys.exit(main())

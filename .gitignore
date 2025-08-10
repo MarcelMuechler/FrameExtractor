@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+.env/
+frames/
+out/
+dist/
+build/
+.pytest_cache/

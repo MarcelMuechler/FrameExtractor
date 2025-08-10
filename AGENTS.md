@@ -20,9 +20,15 @@
 - CLI flags must be documented in `README.md` with copy-paste examples.
 
 ## Testing Guidelines
-- Primary approach: manual, scenario-based checks using the commands above.
+- Always create and run tests for any feature or fix.
+- Prefer automated tests using stdlib `unittest`; place them in `tests/` and keep them fast and hermetic.
+- Complement with manual, scenario-based checks using the commands above.
 - Validate: exit codes, created files, and summary output (e.g., “Wrote N frames…”).
-- If adding automated tests, prefer stdlib `unittest` to avoid new deps. Place in `tests/` and keep them fast and hermetic.
+
+## Workflow Requirements
+- Every change must be committed with a clear, conventional commit message.
+- Push commits to the remote after passing tests.
+- Keep commits small and focused; update documentation alongside code changes.
 
 ## Commit & Pull Request Guidelines
 - Commits: small, focused, with conventional style, e.g., `feat(cli): add --fps via -vf fps=VALUE` or `fix(io): validate output dir`.
