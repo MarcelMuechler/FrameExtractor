@@ -1,5 +1,10 @@
 # Repository Guidelines
 
+## Pre-Work Checklist
+- Before coding, run `git status` and ensure there are no uncommitted changes you might overwrite.
+- Pull the latest changes: `git pull --rebase origin main` (or your active branch).
+- Check open pull requests and align your work (avoid duplicating or conflicting changes).
+
 ## Project Structure & Module Organization
 - `framegrab.py`: Single-file Python CLI; all logic lives here.
 - `README.md`: Usage, examples, and troubleshooting.
@@ -9,6 +14,7 @@
 ## Build, Test, and Development Commands
 - Run CLI: `python framegrab.py <input_video> <output_dir> [flags]`.
 - Check ffmpeg: `ffmpeg -version` (must be on PATH).
+- Run tests: `pytest -q` (install via `pip install -r requirements-dev.txt`).
 - Manual test (all frames): `python framegrab.py sample.mp4 frames/`.
 - Manual test (range + fps): `python framegrab.py sample.mp4 out/ --start 00:00:05 --end 00:00:10 --fps 2 --verbose`.
 
@@ -21,7 +27,8 @@
 
 ## Testing Guidelines
 - Always create and run tests for any feature or fix.
-- Prefer automated tests using stdlib `unittest`; place them in `tests/` and keep them fast and hermetic.
+- Prefer automated tests using `pytest`; place them in `tests/` and keep them fast and hermetic.
+- Use fixtures like `tmp_path`, `monkeypatch`, and `capsys` to isolate behavior.
 - Complement with manual, scenario-based checks using the commands above.
 - Validate: exit codes, created files, and summary output (e.g., “Wrote N frames…”).
 
