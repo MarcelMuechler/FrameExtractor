@@ -101,6 +101,13 @@ def validate_pattern(pattern: str) -> None:
             file=sys.stderr,
         )
         sys.exit(1)
+    # Require a printf-style integer placeholder (e.g., %06d or %d)
+    if not re.search(r"%0?\d*d", pattern):
+        print(
+            "Output pattern must include a %d placeholder (e.g., 'frame_%06d.jpg')",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 def build_ffmpeg_cmd(
@@ -112,8 +119,11 @@ def build_ffmpeg_cmd(
     fps: Optional[float] = None,
     pattern: str = "frame_%06d.jpg",
     overwrite: bool = False,
+    verbose: bool = False,
 ) -> List[str]:
-    cmd: List[str] = ["ffmpeg", "-hide_banner", "-loglevel", "error"]
+    cmd: List[str] = ["ffmpeg", "-hide_banner"]
+    # Use more verbose output when requested
+    cmd += ["-loglevel", "info" if verbose else "error"]
     if start is not None:
         cmd += ["-ss", str(start)]
     cmd += ["-i", str(input_video)]
@@ -193,6 +203,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         fps=args.fps,
         pattern=args.pattern,
         overwrite=args.overwrite,
+        verbose=args.verbose,
     )
 
     printable = " ".join(shlex.quote(part) for part in cmd)
@@ -222,10 +233,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     files = glob.glob(str(args.output_dir / gpat))
     print(f"Wrote {len(files)} frames to {args.output_dir}")
     return 0
-
-
-if __name__ == "__main__":
-    sys.exit(main())
 
 
 if __name__ == "__main__":

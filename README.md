@@ -20,14 +20,16 @@ Flags
 - `--start`: Start time (seconds or `HH:MM:SS[.ms]`).
 - `--end`: End time (seconds or `HH:MM:SS[.ms]`).
 - `--fps`: Fixed frames per second (must be > 0).
-- `--pattern`: Output filename pattern ending with `.jpg/.jpeg/.png` (default `frame_%06d.jpg`).
-- `--overwrite`: Overwrite existing files (`ffmpeg -y`).
-- `--verbose`: Print additional details.
-- `--dry-run`: Do not execute ffmpeg; only print the constructed command.
+ - `--pattern`: Output filename pattern ending with `.jpg/.jpeg/.png` and containing a `%d` placeholder (e.g., `frame_%06d.jpg`). Default: `frame_%06d.jpg`.
+ - `--overwrite`: Overwrite existing files (`ffmpeg -y`).
+ - `--verbose`: Print additional details.
+ - `--dry-run`: Do not execute ffmpeg; only print the constructed command.
 
-Behavior
-- The CLI assembles: `-ss START` (optional), `-i INPUT`, `-to END` (optional), `-vf fps=VALUE` (optional), JPEG quality tweak (`-q:v 2` for `.jpg/.jpeg`), overwrite flag (`-y`/`-n`), and the output pattern.
-- On success, prints a summary like: `Wrote N frames to ./frames`.
+ Behavior
+ - Assembles: `-ss START` (optional), `-i INPUT`, `-to END` (optional), `-vf fps=VALUE` (optional), JPEG quality tweak (`-q:v 2` for `.jpg/.jpeg`), overwrite flag (`-y`/`-n`), and the output pattern.
+ - `--verbose` raises ffmpeg loglevel to `info` for more output.
+ - On success, prints a summary like: `Wrote N frames to ./frames`.
+ - Non-zero exit code when ffmpeg fails (propagates `subprocess.run` return code).
 
 Troubleshooting
 - Error: `ffmpeg not found on PATH. Install it and try again.` → Install ffmpeg and ensure it’s on PATH.
