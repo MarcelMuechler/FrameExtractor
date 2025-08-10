@@ -51,7 +51,13 @@ Troubleshooting
 - Toolkit: tkinter + ttk (stdlib only).
 - Launch: `python gui_app.py`.
 - Inputs: pick Input Video and Output Dir via file dialogs.
-- Options: Start, End, FPS, Pattern with `%d` placeholder; Overwrite, Verbose, Dry-run.
+ - Options: Start, End, FPS, Pattern with `%d` placeholder; Overwrite, Verbose, Dry-run.
 - Preview Command: shows the constructed ffmpeg command (no execution).
 - Extract Frames: runs extraction; status pane shows summary/errors.
 - Notes: on headless environments (no display), the GUI cannot run; use the CLI instead.
+
+Quality of life
+- Source info: shows resolution, source FPS, and duration (via ffprobe).
+- FPS guard: if you enter FPS higher than the source FPS, it is limited to the source.
+- Estimate: shows an approximate frame count based on range and FPS.
+- Open output: quickly open the output folder after a run.

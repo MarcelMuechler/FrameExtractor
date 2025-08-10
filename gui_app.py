@@ -31,6 +31,7 @@ class App(tk.Tk):
         self._build_ui()
         self._job: Optional[threading.Thread] = None
         self._msgs: "queue.Queue[str]" = queue.Queue()
+        self._src_info: Optional[dict] = None
 
     def _apply_styles(self) -> None:
         # Prefer a platform-native theme when available
@@ -77,7 +78,9 @@ class App(tk.Tk):
 
         ttk.Label(input_fr, text="Input Video:").grid(row=0, column=0, sticky="e")
         self.in_var = tk.StringVar()
-        ttk.Entry(input_fr, textvariable=self.in_var).grid(row=0, column=1, sticky="ew", padx=(6, 6))
+        in_entry = ttk.Entry(input_fr, textvariable=self.in_var)
+        in_entry.grid(row=0, column=1, sticky="ew", padx=(6, 6))
+        in_entry.bind("<FocusOut>", lambda e: self._schedule_probe())
         ttk.Button(input_fr, text="Browse", command=self._choose_input).grid(row=0, column=2, sticky="w")
 
         ttk.Label(input_fr, text="Output Dir:").grid(row=1, column=0, sticky="e")
@@ -93,15 +96,21 @@ class App(tk.Tk):
 
         ttk.Label(opts_fr, text="Start:").grid(row=0, column=0, sticky="e")
         self.start_var = tk.StringVar()
-        ttk.Entry(opts_fr, textvariable=self.start_var, width=12).grid(row=0, column=1, sticky="w")
+        start_entry = ttk.Entry(opts_fr, textvariable=self.start_var, width=12)
+        start_entry.grid(row=0, column=1, sticky="w")
+        start_entry.bind("<FocusOut>", lambda e: self._update_estimate())
 
         ttk.Label(opts_fr, text="End:").grid(row=0, column=2, sticky="e")
         self.end_var = tk.StringVar()
-        ttk.Entry(opts_fr, textvariable=self.end_var, width=12).grid(row=0, column=3, sticky="w")
+        end_entry = ttk.Entry(opts_fr, textvariable=self.end_var, width=12)
+        end_entry.grid(row=0, column=3, sticky="w")
+        end_entry.bind("<FocusOut>", lambda e: self._update_estimate())
 
         ttk.Label(opts_fr, text="FPS:").grid(row=0, column=4, sticky="e")
         self.fps_var = tk.StringVar()
-        ttk.Entry(opts_fr, textvariable=self.fps_var, width=8).grid(row=0, column=5, sticky="w")
+        fps_entry = ttk.Entry(opts_fr, textvariable=self.fps_var, width=8)
+        fps_entry.grid(row=0, column=5, sticky="w")
+        fps_entry.bind("<FocusOut>", lambda e: self._enforce_fps_limit())
 
         ttk.Label(opts_fr, text="Pattern:").grid(row=1, column=0, sticky="e", pady=(6, 0))
         self.pattern_var = tk.StringVar(value="frame_%06d.jpg")
@@ -124,6 +133,8 @@ class App(tk.Tk):
         self.preview_btn.grid(row=0, column=0, sticky="w")
         self.extract_btn = ttk.Button(actions_fr, text="Extract Frames", command=self._on_extract)
         self.extract_btn.grid(row=0, column=1, sticky="e")
+        self.open_out_btn = ttk.Button(actions_fr, text="Open Output", command=self._open_output, state="disabled")
+        self.open_out_btn.grid(row=0, column=2, sticky="e", padx=(8, 0))
 
         # Status area
         status_fr = ttk.LabelFrame(root, text="Status / Output")
@@ -141,6 +152,14 @@ class App(tk.Tk):
         self.statusbar = ttk.Label(root, textvariable=self.statusbar_var, style="Status.TLabel")
         self.statusbar.grid(row=4, column=0, sticky="ew", pady=(6, 0))
 
+        # Source info and estimate labels below options
+        self.srcinfo_var = tk.StringVar(value="Source: –")
+        self.estimate_var = tk.StringVar(value="Estimate: –")
+        info_fr = ttk.Frame(root)
+        info_fr.grid(row=5, column=0, sticky="ew")
+        ttk.Label(info_fr, textvariable=self.srcinfo_var).grid(row=0, column=0, sticky="w")
+        ttk.Label(info_fr, textvariable=self.estimate_var).grid(row=0, column=1, sticky="e")
+
     def _choose_input(self) -> None:
         path = filedialog.askopenfilename(
             title="Select video file",
@@ -151,6 +170,7 @@ class App(tk.Tk):
         )
         if path:
             self.in_var.set(path)
+            self._schedule_probe()
 
     def _choose_output(self) -> None:
         path = filedialog.askdirectory(title="Select output directory")
@@ -163,6 +183,95 @@ class App(tk.Tk):
         self.status.see("end")
         self.status.configure(state="disabled")
         self.statusbar_var.set(text if len(text) < 80 else text[:77] + "...")
+
+    def _schedule_probe(self) -> None:
+        path = self.in_var.get().strip()
+        if not path:
+            return
+        p = Path(path)
+        if not p.exists():
+            return
+        # Run in a worker to avoid UI stalls
+        def worker():
+            try:
+                info = framegrab.probe_video_info(p)
+            except Exception as exc:
+                self._msgs.put(f"Probe error: {exc}")
+                info = None
+            self._msgs.put(("__SRCINFO__", info))
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _update_srcinfo_ui(self, info: Optional[dict]) -> None:
+        self._src_info = info or None
+        if not info:
+            self.srcinfo_var.set("Source: –")
+            return
+        fps = info.get("fps")
+        wh = (info.get("width"), info.get("height"))
+        dur = info.get("duration")
+        parts = []
+        if wh[0] and wh[1]:
+            parts.append(f"{wh[0]}x{wh[1]}")
+        if fps:
+            parts.append(f"{fps:.2f} fps")
+        if dur:
+            parts.append(f"{dur:.2f} s")
+        self.srcinfo_var.set("Source: " + (", ".join(parts) if parts else "–"))
+        self._enforce_fps_limit()
+        self._update_estimate()
+
+    def _enforce_fps_limit(self) -> None:
+        if not self._src_info:
+            return
+        src_fps = self._src_info.get("fps")
+        if not src_fps:
+            return
+        val = self.fps_var.get().strip()
+        if not val:
+            return
+        try:
+            user_fps = framegrab.positive_fps(val)
+        except Exception:
+            return
+        if user_fps > src_fps:
+            self.fps_var.set(f"{src_fps:.3f}")
+            self._append_status(f"FPS limited to source rate: {src_fps:.3f}")
+        self._update_estimate()
+
+    def _update_estimate(self) -> None:
+        # Estimate number of frames based on duration and fps
+        info = self._src_info or {}
+        dur = info.get("duration")
+        # Apply start/end range if provided
+        start_s = None
+        end_s = None
+        try:
+            s = self.start_var.get().strip()
+            if s:
+                start_s = framegrab.time_to_seconds(s)
+        except Exception:
+            start_s = None
+        try:
+            e = self.end_var.get().strip()
+            if e:
+                end_s = framegrab.time_to_seconds(e)
+        except Exception:
+            end_s = None
+        if start_s is not None and end_s is not None and end_s > start_s:
+            dur_range = end_s - start_s
+        else:
+            dur_range = dur
+        fps = None
+        try:
+            fv = self.fps_var.get().strip()
+            if fv:
+                fps = framegrab.positive_fps(fv)
+        except Exception:
+            fps = None
+        est = None
+        if dur_range and fps:
+            est = int(max(0, dur_range) * fps)
+        self.estimate_var.set("Estimate: " + (f"~{est} frames" if est is not None else "–"))
 
     def _gather_args(self):
         input_video = Path(self.in_var.get().strip())
@@ -254,12 +363,33 @@ class App(tk.Tk):
                     self.preview_btn.configure(state="normal")
                     self.extract_btn.configure(state="normal")
                     self.statusbar_var.set("Ready")
+                    self.open_out_btn.configure(state="normal")
                 else:
-                    self._append_status(msg)
+                    if isinstance(msg, tuple) and msg and msg[0] == "__SRCINFO__":
+                        self._update_srcinfo_ui(msg[1])
+                    else:
+                        self._append_status(msg)
         except queue.Empty:
             pass
         if self._job and self._job.is_alive():
             self.after(100, self._drain_queue)
+
+    def _open_output(self) -> None:
+        path = self.out_var.get().strip()
+        if not path:
+            return
+        p = Path(path)
+        try:
+            if p.exists():
+                import os, sys, subprocess
+                if sys.platform.startswith("darwin"):
+                    subprocess.Popen(["open", str(p)])
+                elif os.name == "nt":
+                    os.startfile(str(p))  # type: ignore[attr-defined]
+                else:
+                    subprocess.Popen(["xdg-open", str(p)])
+        except Exception as exc:
+            messagebox.showerror("Open Output", f"Could not open: {exc}")
 
 
 def main() -> int:

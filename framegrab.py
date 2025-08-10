@@ -54,6 +54,104 @@ def parse_time(value: str) -> str:
     )
 
 
+def time_to_seconds(value: str) -> float:
+    """Convert a time string or seconds to seconds as float.
+
+    Accepts numeric seconds (int/float as string) or ``HH:MM:SS[.ms]``.
+    Raises ``ValueError`` for invalid inputs.
+    """
+    if value is None:
+        raise ValueError("time_to_seconds requires a non-empty value")
+    # Numeric seconds
+    try:
+        seconds = float(value)
+        if seconds < 0:
+            raise ValueError
+        return seconds
+    except ValueError:
+        pass
+
+    m = TIME_RE.match(value)
+    if not m:
+        raise ValueError("invalid time format")
+    hh, mm, ss, ms = m.groups()
+    base = int(hh) * 3600 + int(mm) * 60 + int(ss)
+    if ms:
+        return base + float(f"0.{ms}")
+    return float(base)
+
+
+def _parse_fraction(frac: str) -> Optional[float]:
+    """Parse a fraction like ``"30000/1001"`` to float.
+
+    Returns ``None`` if parsing fails or denominator is zero.
+    """
+    try:
+        num_s, den_s = frac.split("/", 1)
+        num = float(num_s)
+        den = float(den_s)
+        if den == 0:
+            return None
+        return num / den
+    except Exception:
+        return None
+
+
+def probe_video_info(input_video: Path) -> dict:
+    """Probe video metadata using ffprobe.
+
+    Returns a dict with keys ``fps`` (float or None), ``duration`` (float or None),
+    ``width`` (int or None), ``height`` (int or None).
+    """
+    import json
+    import subprocess
+
+    if not input_video:
+        raise ValueError("input_video is required")
+    # Try to run ffprobe; propagate FileNotFoundError with a clearer message
+    cmd = [
+        "ffprobe",
+        "-v",
+        "error",
+        "-print_format",
+        "json",
+        "-show_format",
+        "-show_streams",
+        str(input_video),
+    ]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True)
+    except FileNotFoundError as exc:
+        raise RuntimeError("ffprobe not found on PATH. Install ffmpeg tools and try again.") from exc
+    if proc.returncode != 0:
+        # Return empty info on failure instead of exiting the program
+        return {"fps": None, "duration": None, "width": None, "height": None}
+    try:
+        data = json.loads(proc.stdout or "{}")
+    except json.JSONDecodeError:
+        return {"fps": None, "duration": None, "width": None, "height": None}
+
+    vstreams = [s for s in data.get("streams", []) if s.get("codec_type") == "video"]
+    v0 = vstreams[0] if vstreams else {}
+    fps = None
+    for key in ("avg_frame_rate", "r_frame_rate"):
+        val = v0.get(key)
+        if isinstance(val, str):
+            fps = _parse_fraction(val)
+            if fps:
+                break
+    width = v0.get("width") if isinstance(v0.get("width"), int) else None
+    height = v0.get("height") if isinstance(v0.get("height"), int) else None
+    duration = None
+    fmt = data.get("format") or {}
+    try:
+        duration = float(fmt.get("duration")) if fmt.get("duration") is not None else None
+    except (TypeError, ValueError):
+        duration = None
+
+    return {"fps": fps, "duration": duration, "width": width, "height": height}
+
+
 def positive_fps(value: str) -> float:
     """Ensure the ``--fps`` argument is a positive number.
 
