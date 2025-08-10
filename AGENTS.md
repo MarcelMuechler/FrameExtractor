@@ -4,6 +4,7 @@
 - Before coding, run `git status` and ensure there are no uncommitted changes you might overwrite.
 - Pull the latest changes: `git pull --rebase origin main` (or your active branch).
 - Check open pull requests and align your work (avoid duplicating or conflicting changes).
+ - Always clean up temporary directories and files you create during testing (e.g., `frames_smoke/`, `out_smoke/`) before finishing your work.
 
 ## Project Structure & Module Organization
 - `framegrab.py`: Single-file Python CLI; all logic lives here.
