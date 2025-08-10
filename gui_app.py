@@ -468,6 +468,8 @@ class App(tk.Tk):
                 self._append_status("Fix validation errors above.")
                 return
             kwargs = self._gather_args()
+            # Preview should never execute ffmpeg; always force dry-run here.
+            kwargs["dry_run"] = True
             rc, _count, cmd = framegrab.extract_frames(**kwargs)
             printable = " ".join(shlex.quote(part) for part in cmd)
             self._append_status(printable)
