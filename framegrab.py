@@ -238,6 +238,15 @@ def validate_pattern(pattern: str) -> None:
             file=sys.stderr,
         )
         sys.exit(1)
+    # Disallow absolute paths or directory components in pattern to avoid
+    # writing outside the selected output directory.
+    p = Path(pattern)
+    if p.is_absolute() or p.name != pattern or "/" in pattern or "\\" in pattern:
+        print(
+            "Output pattern must be a filename only (no directories or absolute paths)",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 def build_ffmpeg_cmd(

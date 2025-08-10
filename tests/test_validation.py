@@ -64,6 +64,21 @@ def test_pattern_requires_placeholder_exits(tmp_path, monkeypatch):
         framegrab.main([str(inp), str(outdir), "--pattern", "frame.jpg"])  # missing %d
 
 
+def test_pattern_rejects_directories_and_absolute(monkeypatch, tmp_path):
+    # Ensure ffmpeg check passes for CLI path validation
+    monkeypatch.setattr("shutil.which", lambda _: "/usr/bin/ffmpeg")
+    inp = tmp_path / "video.mp4"
+    inp.write_bytes(b"fake")
+    outdir = tmp_path / "frames"
+    # Directory components in pattern
+    with pytest.raises(SystemExit):
+        framegrab.main([str(inp), str(outdir), "--pattern", "nested/frame_%06d.jpg"])
+    # Absolute pattern
+    bad_abs = str(tmp_path / "frame_%06d.png")
+    with pytest.raises(SystemExit):
+        framegrab.main([str(inp), str(outdir), "--pattern", bad_abs])
+
+
 def test_verbose_sets_ffmpeg_loglevel_info():
     cmd = framegrab.build_ffmpeg_cmd(
         input_video=Path("in.mp4"),

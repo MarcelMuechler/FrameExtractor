@@ -21,7 +21,7 @@ Flags
 - `--start`: Start time (seconds or `HH:MM:SS[.ms]`).
 - `--end`: End time (seconds or `HH:MM:SS[.ms]`).
 - `--fps`: Fixed frames per second (must be > 0).
- - `--pattern`: Output filename pattern ending with `.jpg/.jpeg/.png` and containing a `%d` placeholder (e.g., `frame_%06d.jpg`). Default: `frame_%06d.jpg`.
+- `--pattern`: Output filename pattern ending with `.jpg/.jpeg/.png` and containing a `%d` placeholder (e.g., `frame_%06d.jpg`). The pattern must be a filename only (no directories or absolute paths). Default: `frame_%06d.jpg`.
  - `--overwrite`: Overwrite existing files (`ffmpeg -y`).
  - `--verbose`: Print additional details.
  - `--dry-run`: Do not execute ffmpeg; only print the constructed command.
@@ -52,7 +52,7 @@ Troubleshooting
 - Launch: `python gui_app.py`.
 - Inputs: pick Input Video and Output Dir via file dialogs.
  - Options: Start, End, FPS, Pattern with `%d` placeholder; Overwrite, Verbose, Dry-run.
-- Preview Command: shows the constructed ffmpeg command (no execution).
+- Preview Command: shows the constructed ffmpeg command (no execution; always dry-run).
 - Extract Frames: runs extraction; status pane shows summary/errors.
 - Notes: on headless environments (no display), the GUI cannot run; use the CLI instead.
 
