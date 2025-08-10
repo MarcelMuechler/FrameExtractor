@@ -61,3 +61,6 @@ Quality of life
 - FPS guard: if you enter FPS higher than the source FPS, it is limited to the source.
 - Estimate: shows an approximate frame count based on range and FPS.
 - Open output: quickly open the output folder after a run.
+- Pattern preview: shows first and last filenames based on pattern and estimate.
+- Reset: clear all inputs and status to defaults.
+- Preferences: remembers last used settings in `~/.frameextractor.json`.
