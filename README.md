@@ -1,10 +1,11 @@
 # FrameExtractor
 
-Simple CLI to extract frames from a video using ffmpeg. Requires Python 3.9+ and a system `ffmpeg` available on `PATH`.
+Simple CLI and GUI to extract frames from a video using ffmpeg. Requires Python 3.9+ and a system `ffmpeg` available on `PATH`.
 
 Usage
 - Run CLI: `python framegrab.py <input_video> <output_dir> [flags]`.
 - Check ffmpeg: `ffmpeg -version` (must be on PATH).
+ - Run GUI: `python gui_app.py` (ttk-based, stdlib-only).
 
 Examples
 - All frames (default JPEGs):
@@ -45,54 +46,12 @@ Troubleshooting
   - Overwrite: `python framegrab.py sample.mp4 frames/ --overwrite`
   - Dry-run: `python framegrab.py sample.mp4 frames/ --dry-run --pattern "img_%05d.png"`
 
-## GUI Wireframe (Planned)
+## GUI
 
-The GUI uses tkinter (stdlib) and reuses the core `extract_frames(...)` function from `framegrab.py`.
-
-Wireframe
-
-```
-+--------------------------------------------------------------+
-| FrameExtractor                                              |
-|--------------------------------------------------------------|
-| Input Video:  [ /path/to/video.mp4                 ] [Browse]|
-| Output Dir:   [ /path/to/output/frames             ] [Browse]|
-|                                                              |
-| Start: [ 00:00:05 ]   End: [ 00:00:10 ]   FPS: [ 2.0 ]       |
-| Pattern: [ frame_%06d.jpg ]                                   |
-|                                                              |
-| [ ] Overwrite existing   [ ] Verbose logs   [ ] Dry-run       |
-|                                                              |
-| [ Preview Command ]                     [ Extract Frames ]    |
-|--------------------------------------------------------------|
-| Status / Output                                              |
-| ffmpeg -hide_banner -loglevel info -ss 00:00:05 -i ...       |
-| Wrote 10 frames to /path/to/output/frames                    |
-|                                                              |
-| (Errors and validation messages appear here)                 |
-+--------------------------------------------------------------+
-```
-
-Behavior
-- Inputs: validate with existing helpers; disable Extract until valid.
-- Preview: shows constructed ffmpeg command in the Status area (no execution).
-- Extract: calls `extract_frames(...)`; prints summary or errors in Status.
-- Verbose: sets `-loglevel info` and prints extra details.
-- Dry-run: shows command without writing files.
-- Overwrite: maps to `-y`; unchecked maps to `-n` (default).
-
-Notes
-- No external dependencies; tkinter only.
-- Progress bars are out of scope for MVP; may be added later.
-- GUI entrypoint: `python gui_app.py` (placeholder exists; UI TBA).
-
-## GUI Usage (MVP)
-
-- Launch: `python gui_app.py`
-- Pick an input video and output directory, set optional Start/End/FPS/Pattern.
-- Options: enable Overwrite, Verbose, or Dry-run as needed.
-- Preview Command prints the constructed ffmpeg invocation without executing.
-- Extract Frames runs the extraction and prints a summary in the Status area.
-
-Notes:
-- On headless environments (no display), the GUI cannot run; use the CLI.
+- Toolkit: tkinter + ttk (stdlib only).
+- Launch: `python gui_app.py`.
+- Inputs: pick Input Video and Output Dir via file dialogs.
+- Options: Start, End, FPS, Pattern with `%d` placeholder; Overwrite, Verbose, Dry-run.
+- Preview Command: shows the constructed ffmpeg command (no execution).
+- Extract Frames: runs extraction; status pane shows summary/errors.
+- Notes: on headless environments (no display), the GUI cannot run; use the CLI instead.

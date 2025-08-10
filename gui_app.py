@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-FrameExtractor GUI (tkinter)
+FrameExtractor GUI (tkinter + ttk)
 
-Thin tkinter-based GUI that reuses ``framegrab.extract_frames`` for execution.
-Stdlib-only; no external dependencies.
+Modernized, stdlib-only GUI that reuses ``framegrab.extract_frames``.
+Uses ttk themed widgets, cleaner layout, and a simple menu bar.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ import shlex
 import threading
 import tkinter as tk
 from tkinter import filedialog, messagebox
+from tkinter import ttk
 from typing import Optional
 
 from pathlib import Path
@@ -24,69 +25,130 @@ class App(tk.Tk):
     def __init__(self) -> None:
         super().__init__()
         self.title("FrameExtractor")
+        self.minsize(720, 420)
+        self._apply_styles()
+        self._build_menu()
         self._build_ui()
         self._job: Optional[threading.Thread] = None
         self._msgs: "queue.Queue[str]" = queue.Queue()
 
+    def _apply_styles(self) -> None:
+        # Prefer a platform-native theme when available
+        style = ttk.Style()
+        for candidate in ("clam", "vista", "default"):  # pragma: no cover - cosmetic
+            try:
+                style.theme_use(candidate)
+                break
+            except Exception:
+                continue
+        style.configure("TFrame", padding=6)
+        style.configure("TLabel", padding=(2, 2))
+        style.configure("TButton", padding=(6, 4))
+        style.configure("Status.TLabel", anchor="w")
+
+    def _build_menu(self) -> None:
+        menubar = tk.Menu(self)
+        file_menu = tk.Menu(menubar, tearoff=0)
+        file_menu.add_command(label="Exit", command=self.destroy)
+        menubar.add_cascade(label="File", menu=file_menu)
+
+        help_menu = tk.Menu(menubar, tearoff=0)
+        help_menu.add_command(
+            label="About",
+            command=lambda: messagebox.showinfo(
+                "About FrameExtractor",
+                "FrameExtractor – extract video frames with ffmpeg\n"
+                "Python stdlib GUI using tkinter/ttk",
+            ),
+        )
+        menubar.add_cascade(label="Help", menu=help_menu)
+        self.config(menu=menubar)
+
     def _build_ui(self) -> None:
-        pad = {"padx": 6, "pady": 4}
-        # Row 0: Input
-        tk.Label(self, text="Input Video:").grid(row=0, column=0, sticky="e", **pad)
+        root = ttk.Frame(self)
+        root.grid(row=0, column=0, sticky="nsew")
+        self.grid_rowconfigure(0, weight=1)
+        self.grid_columnconfigure(0, weight=1)
+
+        # Input section
+        input_fr = ttk.LabelFrame(root, text="Input / Output")
+        input_fr.grid(row=0, column=0, sticky="ew")
+        input_fr.grid_columnconfigure(1, weight=1)
+
+        ttk.Label(input_fr, text="Input Video:").grid(row=0, column=0, sticky="e")
         self.in_var = tk.StringVar()
-        tk.Entry(self, textvariable=self.in_var, width=50).grid(row=0, column=1, **pad)
-        tk.Button(self, text="Browse", command=self._choose_input).grid(row=0, column=2, **pad)
+        ttk.Entry(input_fr, textvariable=self.in_var).grid(row=0, column=1, sticky="ew", padx=(6, 6))
+        ttk.Button(input_fr, text="Browse", command=self._choose_input).grid(row=0, column=2, sticky="w")
 
-        # Row 1: Output
-        tk.Label(self, text="Output Dir:").grid(row=1, column=0, sticky="e", **pad)
+        ttk.Label(input_fr, text="Output Dir:").grid(row=1, column=0, sticky="e")
         self.out_var = tk.StringVar()
-        tk.Entry(self, textvariable=self.out_var, width=50).grid(row=1, column=1, **pad)
-        tk.Button(self, text="Browse", command=self._choose_output).grid(row=1, column=2, **pad)
+        ttk.Entry(input_fr, textvariable=self.out_var).grid(row=1, column=1, sticky="ew", padx=(6, 6))
+        ttk.Button(input_fr, text="Browse", command=self._choose_output).grid(row=1, column=2, sticky="w")
 
-        # Row 2: Times and fps
-        tk.Label(self, text="Start:").grid(row=2, column=0, sticky="e", **pad)
+        # Options section
+        opts_fr = ttk.LabelFrame(root, text="Options")
+        opts_fr.grid(row=1, column=0, sticky="ew", pady=(6, 0))
+        for c in range(6):
+            opts_fr.grid_columnconfigure(c, weight=1)
+
+        ttk.Label(opts_fr, text="Start:").grid(row=0, column=0, sticky="e")
         self.start_var = tk.StringVar()
-        tk.Entry(self, textvariable=self.start_var, width=12).grid(row=2, column=1, sticky="w", **pad)
+        ttk.Entry(opts_fr, textvariable=self.start_var, width=12).grid(row=0, column=1, sticky="w")
 
-        tk.Label(self, text="End:").grid(row=2, column=1, sticky="e", **pad)
+        ttk.Label(opts_fr, text="End:").grid(row=0, column=2, sticky="e")
         self.end_var = tk.StringVar()
-        tk.Entry(self, textvariable=self.end_var, width=12).grid(row=2, column=1, sticky="", padx=140, pady=4)
+        ttk.Entry(opts_fr, textvariable=self.end_var, width=12).grid(row=0, column=3, sticky="w")
 
-        tk.Label(self, text="FPS:").grid(row=2, column=1, sticky="e", padx=290, pady=4)
+        ttk.Label(opts_fr, text="FPS:").grid(row=0, column=4, sticky="e")
         self.fps_var = tk.StringVar()
-        tk.Entry(self, textvariable=self.fps_var, width=8).grid(row=2, column=1, sticky="e", padx=230, pady=4)
+        ttk.Entry(opts_fr, textvariable=self.fps_var, width=8).grid(row=0, column=5, sticky="w")
 
-        # Row 3: Pattern
-        tk.Label(self, text="Pattern:").grid(row=3, column=0, sticky="e", **pad)
+        ttk.Label(opts_fr, text="Pattern:").grid(row=1, column=0, sticky="e", pady=(6, 0))
         self.pattern_var = tk.StringVar(value="frame_%06d.jpg")
-        tk.Entry(self, textvariable=self.pattern_var, width=50).grid(row=3, column=1, **pad)
+        ttk.Entry(opts_fr, textvariable=self.pattern_var).grid(row=1, column=1, columnspan=5, sticky="ew", pady=(6, 0))
 
-        # Row 4: Options
+        toggles_fr = ttk.Frame(opts_fr)
+        toggles_fr.grid(row=2, column=0, columnspan=6, sticky="w", pady=(6, 0))
         self.overwrite_var = tk.BooleanVar(value=False)
-        tk.Checkbutton(self, text="Overwrite", variable=self.overwrite_var).grid(row=4, column=0, sticky="w", padx=80, pady=4)
-
         self.verbose_var = tk.BooleanVar(value=False)
-        tk.Checkbutton(self, text="Verbose", variable=self.verbose_var).grid(row=4, column=1, sticky="w", padx=0, pady=4)
-
         self.dry_run_var = tk.BooleanVar(value=False)
-        tk.Checkbutton(self, text="Dry-run", variable=self.dry_run_var).grid(row=4, column=1, sticky="w", padx=100, pady=4)
+        ttk.Checkbutton(toggles_fr, text="Overwrite", variable=self.overwrite_var).grid(row=0, column=0, padx=(0, 12))
+        ttk.Checkbutton(toggles_fr, text="Verbose", variable=self.verbose_var).grid(row=0, column=1, padx=(0, 12))
+        ttk.Checkbutton(toggles_fr, text="Dry-run", variable=self.dry_run_var).grid(row=0, column=2)
 
-        # Row 5: Actions
-        self.preview_btn = tk.Button(self, text="Preview Command", command=self._on_preview)
-        self.preview_btn.grid(row=5, column=0, sticky="w", padx=80, pady=6)
-        self.extract_btn = tk.Button(self, text="Extract Frames", command=self._on_extract)
-        self.extract_btn.grid(row=5, column=1, sticky="e", padx=80, pady=6)
+        # Actions
+        actions_fr = ttk.Frame(root)
+        actions_fr.grid(row=2, column=0, sticky="ew", pady=(8, 0))
+        actions_fr.grid_columnconfigure(0, weight=1)
+        self.preview_btn = ttk.Button(actions_fr, text="Preview Command", command=self._on_preview)
+        self.preview_btn.grid(row=0, column=0, sticky="w")
+        self.extract_btn = ttk.Button(actions_fr, text="Extract Frames", command=self._on_extract)
+        self.extract_btn.grid(row=0, column=1, sticky="e")
 
-        # Row 6: Status area
-        tk.Label(self, text="Status / Output:").grid(row=6, column=0, sticky="nw", **pad)
-        self.status = tk.Text(self, height=10, width=80, state="disabled")
-        self.status.grid(row=6, column=1, columnspan=2, sticky="nsew", **pad)
+        # Status area
+        status_fr = ttk.LabelFrame(root, text="Status / Output")
+        status_fr.grid(row=3, column=0, sticky="nsew", pady=(8, 0))
+        root.grid_rowconfigure(3, weight=1)
+        root.grid_columnconfigure(0, weight=1)
 
-        # Make status expand
-        self.grid_columnconfigure(1, weight=1)
-        self.grid_rowconfigure(6, weight=1)
+        self.status = tk.Text(status_fr, height=10, wrap="word", state="disabled")
+        self.status.grid(row=0, column=0, sticky="nsew")
+        status_fr.grid_rowconfigure(0, weight=1)
+        status_fr.grid_columnconfigure(0, weight=1)
+
+        # Bottom status bar
+        self.statusbar_var = tk.StringVar(value="Ready")
+        self.statusbar = ttk.Label(root, textvariable=self.statusbar_var, style="Status.TLabel")
+        self.statusbar.grid(row=4, column=0, sticky="ew", pady=(6, 0))
 
     def _choose_input(self) -> None:
-        path = filedialog.askopenfilename(title="Select video file")
+        path = filedialog.askopenfilename(
+            title="Select video file",
+            filetypes=[
+                ("Video files", ".mp4 .mov .mkv .avi .webm .m4v"),
+                ("All files", "*"),
+            ],
+        )
         if path:
             self.in_var.set(path)
 
@@ -100,6 +162,7 @@ class App(tk.Tk):
         self.status.insert("end", text + "\n")
         self.status.see("end")
         self.status.configure(state="disabled")
+        self.statusbar_var.set(text if len(text) < 80 else text[:77] + "...")
 
     def _gather_args(self):
         input_video = Path(self.in_var.get().strip())
@@ -159,6 +222,7 @@ class App(tk.Tk):
 
         self.preview_btn.configure(state="disabled")
         self.extract_btn.configure(state="disabled")
+        self.statusbar_var.set("Running...")
 
         def worker():
             try:
@@ -189,6 +253,7 @@ class App(tk.Tk):
                 if msg == "__DONE__":
                     self.preview_btn.configure(state="normal")
                     self.extract_btn.configure(state="normal")
+                    self.statusbar_var.set("Ready")
                 else:
                     self._append_status(msg)
         except queue.Empty:
