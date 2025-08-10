@@ -35,6 +35,7 @@ Flags
 Troubleshooting
 - Error: `ffmpeg not found on PATH. Install it and try again.` → Install ffmpeg and ensure it’s on PATH.
 - Invalid time formats → Use numeric seconds or `HH:MM:SS[.ms]`.
+- No duration/indeterminate progress → Ensure `ffprobe` is installed and on PATH. The app probes the input when selected and again before extraction to improve accuracy.
 
 ## Development
 
@@ -54,6 +55,9 @@ Troubleshooting
  - Options: Start, End, FPS, Pattern with `%d` placeholder; Overwrite, Verbose, Dry-run.
 - Preview Command: shows the constructed ffmpeg command (no execution; always dry-run).
 - Extract Frames: runs extraction; status pane shows summary/errors.
+- Progress: shows a progress bar while extracting.
+  - Determinate when source duration and FPS are known (requires `ffprobe`).
+  - Indeterminate otherwise.
 - Notes: on headless environments (no display), the GUI cannot run; use the CLI instead.
 
 Quality of life

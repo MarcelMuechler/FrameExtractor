@@ -500,6 +500,15 @@ class App(tk.Tk):
                 self._append_status("Fix validation errors above.")
                 return
             kwargs = self._gather_args()
+            # Ensure source info/duration is available just before starting
+            # to enable determinate progress when possible.
+            try:
+                if not self._src_info or not self._src_info.get("duration"):
+                    info = framegrab.probe_video_info(kwargs["input_video"])  # may raise
+                    self._update_srcinfo_ui(info)
+            except Exception as exc:
+                # Non-fatal: proceed with indeterminate progress
+                self._append_status(f"Probe error: {exc}")
         except Exception as exc:
             messagebox.showerror("Error", str(exc))
             return
