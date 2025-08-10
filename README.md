@@ -85,3 +85,14 @@ Notes
 - No external dependencies; tkinter only.
 - Progress bars are out of scope for MVP; may be added later.
 - GUI entrypoint: `python gui_app.py` (placeholder exists; UI TBA).
+
+## GUI Usage (MVP)
+
+- Launch: `python gui_app.py`
+- Pick an input video and output directory, set optional Start/End/FPS/Pattern.
+- Options: enable Overwrite, Verbose, or Dry-run as needed.
+- Preview Command prints the constructed ffmpeg invocation without executing.
+- Extract Frames runs the extraction and prints a summary in the Status area.
+
+Notes:
+- On headless environments (no display), the GUI cannot run; use the CLI.
