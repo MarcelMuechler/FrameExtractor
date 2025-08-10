@@ -1,6 +1,6 @@
 # FrameExtractor
 
-Simple CLI to extract frames from a video using ffmpeg.
+Simple CLI to extract frames from a video using ffmpeg. Requires Python 3.9+ and a system `ffmpeg` available on `PATH`.
 
 Usage
 - Run CLI: `python framegrab.py <input_video> <output_dir> [flags]`.
@@ -11,6 +11,8 @@ Examples
   - `python framegrab.py sample.mp4 frames/`
 - Range + fps with verbose:
   - `python framegrab.py sample.mp4 out/ --start 00:00:05 --end 00:00:10 --fps 2 --verbose`
+ - Overwrite any existing frames:
+   - `python framegrab.py sample.mp4 frames/ --overwrite`
 - Dry-run (print command only):
   - `python framegrab.py sample.mp4 frames/ --dry-run --pattern "img_%05d.png"`
 
@@ -30,3 +32,13 @@ Behavior
 Troubleshooting
 - Error: `ffmpeg not found on PATH. Install it and try again.` → Install ffmpeg and ensure it’s on PATH.
 - Invalid time formats → Use numeric seconds or `HH:MM:SS[.ms]`.
+
+## Development
+
+- Setup: `pip install -r requirements-dev.txt`
+- Run tests: `pytest -q`
+- Manual checks:
+  - All frames: `python framegrab.py sample.mp4 frames/`
+  - Range+fps: `python framegrab.py sample.mp4 out/ --start 00:00:05 --end 00:00:10 --fps 2 --verbose`
+  - Overwrite: `python framegrab.py sample.mp4 frames/ --overwrite`
+  - Dry-run: `python framegrab.py sample.mp4 frames/ --dry-run --pattern "img_%05d.png"`
