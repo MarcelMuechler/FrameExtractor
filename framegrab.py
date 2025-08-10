@@ -21,7 +21,7 @@ import shlex
 import shutil
 import sys
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 
 TIME_RE = re.compile(r"^(\d{1,2}):(\d{2}):(\d{2})(?:\.(\d{1,3}))?$")
@@ -196,6 +196,56 @@ def pattern_to_glob(pattern: str) -> str:
     return re.sub(r"%0?\d*d", "*", pattern)
 
 
+def extract_frames(
+    input_video: Path,
+    output_dir: Path,
+    *,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    fps: Optional[float] = None,
+    pattern: str = "frame_%06d.jpg",
+    overwrite: bool = False,
+    verbose: bool = False,
+    dry_run: bool = False,
+) -> Tuple[int, int, List[str]]:
+    """Extract frames according to options and return status.
+
+    Returns a tuple of ``(return_code, frames_written, cmd)`` where ``cmd`` is the
+    argument list passed to ``ffmpeg``. In ``dry_run`` mode, no files are written
+    and ``frames_written`` is ``0``.
+    """
+    check_ffmpeg_available()
+    validate_paths(input_video, output_dir)
+    validate_pattern(pattern)
+
+    cmd = build_ffmpeg_cmd(
+        input_video,
+        output_dir,
+        start=start,
+        end=end,
+        fps=fps,
+        pattern=pattern,
+        overwrite=overwrite,
+        verbose=verbose,
+    )
+
+    if dry_run:
+        return 0, 0, cmd
+
+    if not output_dir.exists():
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+    import subprocess
+
+    proc = subprocess.run(cmd)
+    if proc.returncode != 0:
+        return proc.returncode, 0, cmd
+
+    gpat = pattern_to_glob(pattern)
+    files = glob.glob(str(output_dir / gpat))
+    return 0, len(files), cmd
+
+
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         prog="framegrab.py",
@@ -234,15 +284,10 @@ def main(argv: Optional[List[str]] = None) -> int:
 
     args = parser.parse_args(argv)
 
-    # Validate environment and inputs
-    check_ffmpeg_available()
-    validate_paths(args.input_video, args.output_dir)
-    validate_pattern(args.pattern)
-
     if args.verbose:
         print("Assembling ffmpeg command...", file=sys.stderr)
 
-    cmd = build_ffmpeg_cmd(
+    rc, count, cmd = extract_frames(
         args.input_video,
         args.output_dir,
         start=args.start,
@@ -251,6 +296,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         pattern=args.pattern,
         overwrite=args.overwrite,
         verbose=args.verbose,
+        dry_run=args.dry_run,
     )
 
     printable = " ".join(shlex.quote(part) for part in cmd)
@@ -258,28 +304,13 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(printable)
         if args.verbose:
             print("(dry-run) Not executing ffmpeg.", file=sys.stderr)
-        return 0
+        return rc
 
-    # Ensure output directory exists before running
-    if not args.output_dir.exists():
-        args.output_dir.mkdir(parents=True, exist_ok=True)
+    if rc != 0:
+        return rc
 
-    if args.verbose:
-        print(f"Executing: {printable}", file=sys.stderr)
-
-    # Execute ffmpeg
-    import subprocess
-
-    proc = subprocess.run(cmd)
-    if proc.returncode != 0:
-        # ffmpeg likely printed errors to stderr due to -loglevel error
-        return proc.returncode
-
-    # Summarize number of frames written
-    gpat = pattern_to_glob(args.pattern)
-    files = glob.glob(str(args.output_dir / gpat))
-    print(f"Wrote {len(files)} frames to {args.output_dir}")
-    return 0
+    print(f"Wrote {count} frames to {args.output_dir}")
+    return rc
 
 
 if __name__ == "__main__":
