@@ -55,22 +55,45 @@ def parse_time(value: str) -> str:
 
 
 def positive_fps(value: str) -> float:
+    """Ensure the ``--fps`` argument is a positive number.
+
+    Args:
+        value: User-provided frames-per-second value.
+
+    Raises:
+        argparse.ArgumentTypeError: If ``value`` is non-numeric or <= 0.
+    """
     try:
         fps = float(value)
     except ValueError as exc:
         raise argparse.ArgumentTypeError("--fps must be a number > 0") from exc
-    if fps <= 0:
+    if not fps > 0:
         raise argparse.ArgumentTypeError("--fps must be > 0")
     return fps
 
 
 def check_ffmpeg_available() -> None:
+    """Abort if the ``ffmpeg`` executable is not on ``PATH``.
+
+    Raises:
+        SystemExit: If ``ffmpeg`` cannot be located.
+    """
     if shutil.which("ffmpeg") is None:
         print("ffmpeg not found on PATH. Install it and try again.", file=sys.stderr)
         sys.exit(1)
 
 
 def validate_paths(input_video: Path, output_dir: Path) -> None:
+    """Validate input video and output directory paths.
+
+    Args:
+        input_video: Path to an existing video file.
+        output_dir: Directory where frames will be written.
+
+    Raises:
+        SystemExit: If the input file is missing, the output path is invalid,
+            or the destination parent directory is not writable.
+    """
     if not input_video.exists() or not input_video.is_file():
         print(f"Input file not found: {input_video}", file=sys.stderr)
         sys.exit(1)
@@ -93,6 +116,15 @@ def validate_paths(input_video: Path, output_dir: Path) -> None:
 
 
 def validate_pattern(pattern: str) -> None:
+    """Check that the output filename pattern is supported.
+
+    Args:
+        pattern: Filename template containing a ``%d`` placeholder.
+
+    Raises:
+        SystemExit: If the extension is not ``.jpg``, ``.jpeg``, or ``.png``,
+            or the placeholder is missing.
+    """
     allowed_exts = {".jpg", ".jpeg", ".png"}
     ext = Path(pattern).suffix.lower()
     if ext not in allowed_exts:
@@ -121,6 +153,21 @@ def build_ffmpeg_cmd(
     overwrite: bool = False,
     verbose: bool = False,
 ) -> List[str]:
+    """Assemble the ``ffmpeg`` command for extracting frames.
+
+    Args:
+        input_video: Source video path.
+        output_dir: Destination directory for frames.
+        start: Optional start time.
+        end: Optional end time.
+        fps: Optional frame rate to sample.
+        pattern: Output filename template.
+        overwrite: Whether to overwrite existing files.
+        verbose: Whether to use ``info`` log level.
+
+    Returns:
+        List of command arguments to run with ``subprocess``.
+    """
     cmd: List[str] = ["ffmpeg", "-hide_banner"]
     # Use more verbose output when requested
     cmd += ["-loglevel", "info" if verbose else "error"]
