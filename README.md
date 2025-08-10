@@ -44,3 +44,44 @@ Troubleshooting
   - Range+fps: `python framegrab.py sample.mp4 out/ --start 00:00:05 --end 00:00:10 --fps 2 --verbose`
   - Overwrite: `python framegrab.py sample.mp4 frames/ --overwrite`
   - Dry-run: `python framegrab.py sample.mp4 frames/ --dry-run --pattern "img_%05d.png"`
+
+## GUI Wireframe (Planned)
+
+The GUI uses tkinter (stdlib) and reuses the core `extract_frames(...)` function from `framegrab.py`.
+
+Wireframe
+
+```
++--------------------------------------------------------------+
+| FrameExtractor                                              |
+|--------------------------------------------------------------|
+| Input Video:  [ /path/to/video.mp4                 ] [Browse]|
+| Output Dir:   [ /path/to/output/frames             ] [Browse]|
+|                                                              |
+| Start: [ 00:00:05 ]   End: [ 00:00:10 ]   FPS: [ 2.0 ]       |
+| Pattern: [ frame_%06d.jpg ]                                   |
+|                                                              |
+| [ ] Overwrite existing   [ ] Verbose logs   [ ] Dry-run       |
+|                                                              |
+| [ Preview Command ]                     [ Extract Frames ]    |
+|--------------------------------------------------------------|
+| Status / Output                                              |
+| ffmpeg -hide_banner -loglevel info -ss 00:00:05 -i ...       |
+| Wrote 10 frames to /path/to/output/frames                    |
+|                                                              |
+| (Errors and validation messages appear here)                 |
++--------------------------------------------------------------+
+```
+
+Behavior
+- Inputs: validate with existing helpers; disable Extract until valid.
+- Preview: shows constructed ffmpeg command in the Status area (no execution).
+- Extract: calls `extract_frames(...)`; prints summary or errors in Status.
+- Verbose: sets `-loglevel info` and prints extra details.
+- Dry-run: shows command without writing files.
+- Overwrite: maps to `-y`; unchecked maps to `-n` (default).
+
+Notes
+- No external dependencies; tkinter only.
+- Progress bars are out of scope for MVP; may be added later.
+- GUI entrypoint: `python gui_app.py` (placeholder exists; UI TBA).
