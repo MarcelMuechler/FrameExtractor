@@ -211,10 +211,21 @@ class App(tk.Tk):
         self.reset_btn = ttk.Button(actions_fr, text="Reset", command=self._on_reset)
         self.reset_btn.grid(row=0, column=3, sticky="e", padx=(8, 0))
 
+        # Progress
+        prog_fr = ttk.Frame(root)
+        prog_fr.grid(row=3, column=0, sticky="ew", pady=(6, 0))
+        prog_fr.grid_columnconfigure(1, weight=1)
+        ttk.Label(prog_fr, text="Progress:").grid(row=0, column=0, sticky="w")
+        self.progress = ttk.Progressbar(prog_fr, mode="determinate", maximum=100)
+        self.progress.grid(row=0, column=1, sticky="ew")
+        self.progress_var = tk.StringVar(value="0%")
+        self.progress_lbl = ttk.Label(prog_fr, textvariable=self.progress_var)
+        self.progress_lbl.grid(row=0, column=2, sticky="e", padx=(6, 0))
+
         # Status area
         status_fr = ttk.LabelFrame(root, text="Status / Output")
-        status_fr.grid(row=3, column=0, sticky="nsew", pady=(8, 0))
-        root.grid_rowconfigure(3, weight=1)
+        status_fr.grid(row=4, column=0, sticky="nsew", pady=(8, 0))
+        root.grid_rowconfigure(4, weight=1)
         root.grid_columnconfigure(0, weight=1)
         self.status = tk.Text(status_fr, height=10, wrap="word", state="disabled")
         self.status.grid(row=0, column=0, sticky="nsew")
@@ -224,13 +235,13 @@ class App(tk.Tk):
         # Bottom status bar
         self.statusbar_var = tk.StringVar(value="Ready")
         self.statusbar = ttk.Label(root, textvariable=self.statusbar_var, style="Status.TLabel")
-        self.statusbar.grid(row=4, column=0, sticky="ew", pady=(6, 0))
+        self.statusbar.grid(row=5, column=0, sticky="ew", pady=(6, 0))
 
         # Source info + estimate
         self.srcinfo_var = tk.StringVar(value="Source: –")
         self.estimate_var = tk.StringVar(value="Estimate: –")
         info_fr = ttk.Frame(root)
-        info_fr.grid(row=5, column=0, sticky="ew")
+        info_fr.grid(row=6, column=0, sticky="ew")
         ttk.Label(info_fr, textvariable=self.srcinfo_var).grid(row=0, column=0, sticky="w")
         ttk.Label(info_fr, textvariable=self.estimate_var).grid(row=0, column=1, sticky="e")
 
@@ -497,6 +508,9 @@ class App(tk.Tk):
         self.extract_btn.configure(state="disabled")
         self.statusbar_var.set("Running...")
 
+        # Configure progress
+        self._setup_progress(kwargs)
+
         def worker():
             try:
                 rc, count, cmd = framegrab.extract_frames(**kwargs)
@@ -518,6 +532,67 @@ class App(tk.Tk):
         self._job = threading.Thread(target=worker, daemon=True)
         self._job.start()
         self.after(50, self._drain_queue)
+        self.after(200, self._poll_progress, kwargs)
+
+    def _setup_progress(self, kwargs: dict) -> None:
+        # Determine expected frame count from estimate text
+        est = None
+        m = re.search(r"~(\d+) frames", self.estimate_var.get())
+        if m:
+            try:
+                est = int(m.group(1))
+            except Exception:
+                est = None
+        self._progress_total = est if est and est > 0 else None
+        self._progress_glob = None
+        try:
+            patt = kwargs.get("pattern") or "frame_%06d.jpg"
+            from framegrab import pattern_to_glob
+            self._progress_glob = pattern_to_glob(patt)
+        except Exception:
+            self._progress_glob = None
+        self._progress_outdir = Path(kwargs.get("output_dir", "."))
+        self._progress_running = not kwargs.get("dry_run", False)
+        self._progress_last = 0
+        if not self._progress_running:
+            # No progress for dry-run
+            self.progress.stop()
+            self.progress.configure(mode="determinate")
+            self.progress['value'] = 0
+            self.progress_var.set("0%")
+            return
+        if self._progress_total is None:
+            # Indeterminate when we cannot estimate total frames
+            self.progress.configure(mode="indeterminate")
+            self.progress.start(10)
+            self.progress_var.set("…")
+        else:
+            self.progress.stop()
+            self.progress.configure(mode="determinate", maximum=self._progress_total)
+            self.progress['value'] = 0
+            self.progress_var.set("0%")
+
+    def _poll_progress(self, kwargs: dict) -> None:
+        # Periodically update progress by counting files written
+        if not getattr(self, "_progress_running", False):
+            return
+        try:
+            if self._progress_glob:
+                import glob as _glob
+                files = _glob.glob(str(self._progress_outdir / self._progress_glob))
+                count = len(files)
+            else:
+                count = 0
+        except Exception:
+            count = self._progress_last
+        self._progress_last = count
+        if self.progress.cget('mode') == 'determinate' and self._progress_total:
+            self.progress['value'] = min(count, self._progress_total)
+            pct = int(100 * min(count, self._progress_total) / max(1, self._progress_total))
+            self.progress_var.set(f"{pct}%")
+        # reschedule while job is alive
+        if self._job and self._job.is_alive():
+            self.after(300, self._poll_progress, kwargs)
 
     def _drain_queue(self) -> None:
         try:
@@ -528,6 +603,15 @@ class App(tk.Tk):
                     self.extract_btn.configure(state="normal")
                     self.statusbar_var.set("Ready")
                     self.open_out_btn.configure(state="normal")
+                    # finalize progress
+                    self._progress_running = False
+                    try:
+                        self.progress.stop()
+                    except Exception:
+                        pass
+                    if self.progress.cget('mode') == 'determinate' and self._progress_total:
+                        self.progress['value'] = self._progress_total
+                        self.progress_var.set("100%")
                 else:
                     if isinstance(msg, tuple) and msg and msg[0] == "__SRCINFO__":
                         self._update_srcinfo_ui(msg[1])

@@ -18,6 +18,9 @@ def test_gui_app_creates_and_closes():
     from gui_app import App
     app = App()
     app.update()
+    # Progress bar widgets should exist
+    assert hasattr(app, 'progress')
+    assert hasattr(app, 'progress_var')
     app.destroy()
 
 
